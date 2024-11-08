@@ -31,4 +31,10 @@ python-dotenv==1.0.0
 
 # Optional but recommended for better performance
 numba==0.58.1
-llvmlite==0.41.1 
+llvmlite==0.41.1
+
+# 3D Processing
+torch==2.1.0
+trimesh==4.0.5
+pyrender==0.1.45
+numpy==1.26.3 

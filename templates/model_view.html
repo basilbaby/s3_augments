@@ -43,6 +43,10 @@
             font-size: 14px;
             font-weight: 500;
         }
+        .button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
         .upload-button { background-color: #4285f4; }
         .preprocess-button { background-color: #673ab7; }
         .augment-button { background-color: #4caf50; }
@@ -138,5 +142,64 @@
             </div>
         </div>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentFilename = '{{ file_info.name }}';
+
+        async function updateModel(action) {
+            try {
+                // Show loading state
+                const button = document.querySelector(`.${action}-button`);
+                button.disabled = true;
+                button.textContent = 'Processing...';
+
+                const formData = new FormData();
+                formData.append('filename', currentFilename);
+
+                const response = await fetch(`/${action}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    // Update the preview image
+                    document.querySelector('.model-preview img').src = `data:image/png;base64,${data.preview}`;
+                    
+                    // Update the statistics
+                    document.querySelector('.stats-table tr:nth-child(1) td:last-child').textContent = data.vertices;
+                    document.querySelector('.stats-table tr:nth-child(2) td:last-child').textContent = data.faces;
+                    
+                    console.log(`${action} successful`);
+                } else {
+                    console.error(`${action} failed:`, data.error);
+                    alert(data.error || 'Unknown error occurred');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error during ${action}: ${error.message}`);
+            } finally {
+                // Reset button state
+                const button = document.querySelector(`.${action}-button`);
+                button.disabled = false;
+                button.textContent = action === 'preprocess' ? 'Preprocess' : 'Augmentation';
+            }
+        }
+
+        // Add click handlers for both buttons
+        document.querySelector('.preprocess-button').addEventListener('click', () => {
+            updateModel('preprocess');
+        });
+
+        document.querySelector('.augment-button').addEventListener('click', () => {
+            updateModel('augment');
+        });
+    });
+    </script>
 </body>
-</html> 
+</html>
