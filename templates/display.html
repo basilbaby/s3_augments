@@ -1,23 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>File Contents</title>
+    <title>Augmenter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
         }
         .content {
             background-color: #f5f5f7;
             border-radius: 10px;
             padding: 20px;
             margin-top: 20px;
+            flex: 1;
+            position: relative;
+        }
+        .content-header {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            margin: 0;
+            color: #666;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        .content-text {
+            margin-top: 30px;
             white-space: pre-wrap;
             word-wrap: break-word;
+            line-height: 1.5;
+            padding: 10px;
         }
-        .back-button {
+        .button {
             display: inline-block;
             background-color: #0071e3;
             color: white;
@@ -25,17 +45,96 @@
             padding: 10px 20px;
             border-radius: 6px;
             margin-top: 20px;
+            border: none;
+            cursor: pointer;
         }
-        .back-button:hover {
+        .button:hover {
             background-color: #0077ed;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+        }
+        .augment-button {
+            background-color: #34c759;
+        }
+        .augment-button:hover {
+            background-color: #30b753;
+        }
+        .preprocess-button {
+            background-color: #5856d6;
+        }
+        .preprocess-button:hover {
+            background-color: #4a49c2;
+        }
+        .file-info {
+            background-color: #f5f5f7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .file-info-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+        }
+        .file-info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        .file-info-value {
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <h1>File Contents</h1>
-    <div class="content">
-        {{ text }}
+    <h1>Augmenter</h1>
+    
+    {% if file_info %}
+    <div class="file-info">
+        <div class="file-info-grid">
+            <span class="file-info-label">File Name:</span>
+            <span class="file-info-value">{{ file_info.name }}</span>
+            
+            <span class="file-info-label">File Type:</span>
+            <span class="file-info-value">{{ file_info.type }}</span>
+            
+            <span class="file-info-label">File Size:</span>
+            <span class="file-info-value">{{ file_info.size_formatted }}</span>
+        </div>
     </div>
-    <a href="/" class="back-button">Upload Another File</a>
+    {% endif %}
+
+    <div class="button-container">
+        <a href="/" class="button">Upload Another File</a>
+        <form action="{{ url_for('preprocess') }}" method="post" style="display: inline;">
+            <input type="hidden" name="text" value="{{ text }}">
+            <button type="submit" class="button preprocess-button">Preprocess Text</button>
+        </form>
+        <form action="{{ url_for('augment') }}" method="post" style="display: inline;">
+            <input type="hidden" name="text" value="{{ text }}">
+            <button type="submit" class="button augment-button">Apply Synonym Replacement</button>
+        </form>
+    </div>
+    
+    <div class="container">
+        <div class="content">
+            <h3 class="content-header">Original Text:</h3>
+            <div class="content-text">{{ text }}</div>
+        </div>
+        {% if augmented_text %}
+        <div class="content">
+            <h3 class="content-header">
+                {% if processed_type == "Synonym" %}
+                Synonym Text:
+                {% else %}
+                Preprocessed Text:
+                {% endif %}
+            </h3>
+            <div class="content-text">{{ augmented_text }}</div>
+        </div>
+        {% endif %}
+    </div>
 </body>
 </html> 
