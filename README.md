@@ -1,6 +1,6 @@
-# Text and Image Augmenter
+# Augmenter
 
-A Flask-based web application that provides preprocessing and augmentation capabilities for both text and image files.
+A Flask-based web application that provides preprocessing and augmentation capabilities for text, image, and audio files.
 
 ## Features
 
@@ -29,6 +29,17 @@ A Flask-based web application that provides preprocessing and augmentation capab
    - Saturation Modification (±70%)
    - Hue Variation (±10%)
    - Image Sharpening
+
+### Audio Processing
+1. **Preprocessing**
+   - Noise Reduction
+   - Audio Enhancement
+   - Signal Preprocessing
+
+2. **Augmentation**
+   - Speed Modification (20% faster)
+   - Pitch Preservation
+   - Audio Quality Maintenance
 
 ## Installation
 
@@ -77,6 +88,11 @@ A Flask-based web application that provides preprocessing and augmentation capab
 - Supported formats: `.png`, `.jpg`, `.jpeg`, `.gif`
 - Maximum file size: 16MB
 - Both RGB and RGBA images supported
+
+### Audio Files
+- Supported formats: `.wav`, `.mp3`
+- Maximum file size: 16MB
+- Both mono and stereo audio supported
 
 ## Technical Details
 
