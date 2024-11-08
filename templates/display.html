@@ -20,6 +20,8 @@
             margin-top: 20px;
             flex: 1;
             position: relative;
+            min-height: 300px;
+            padding-top: 60px;
         }
         .content-header {
             position: absolute;
@@ -36,6 +38,15 @@
             word-wrap: break-word;
             line-height: 1.5;
             padding: 10px;
+        }
+        .content-image {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .content-image img {
+            max-width: 100%;
+            max-height: 500px;
+            object-fit: contain;
         }
         .button {
             display: inline-block;
@@ -86,6 +97,17 @@
         .file-info-value {
             color: #333;
         }
+        .processing-info {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+            padding: 5px 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            position: absolute;
+            top: 35px;
+            left: 20px;
+        }
     </style>
 </head>
 <body>
@@ -108,31 +130,70 @@
 
     <div class="button-container">
         <a href="/" class="button">Upload Another File</a>
+        {% if is_image %}
+        <form action="{{ url_for('preprocess') }}" method="post" style="display: inline;">
+            <input type="hidden" name="filename" value="{{ file_info.name }}">
+            <button type="submit" class="button preprocess-button">Preprocess</button>
+        </form>
+        <form action="{{ url_for('augment') }}" method="post" style="display: inline;">
+            <input type="hidden" name="filename" value="{{ file_info.name }}">
+            <button type="submit" class="button augment-button">Augmentation</button>
+        </form>
+        {% else %}
         <form action="{{ url_for('preprocess') }}" method="post" style="display: inline;">
             <input type="hidden" name="text" value="{{ text }}">
-            <button type="submit" class="button preprocess-button">Preprocess Text</button>
+            <button type="submit" class="button preprocess-button">Preprocess</button>
         </form>
         <form action="{{ url_for('augment') }}" method="post" style="display: inline;">
             <input type="hidden" name="text" value="{{ text }}">
-            <button type="submit" class="button augment-button">Apply Synonym Replacement</button>
+            <button type="submit" class="button augment-button">Augmentation</button>
         </form>
+        {% endif %}
     </div>
     
     <div class="container">
         <div class="content">
-            <h3 class="content-header">Original Text:</h3>
-            <div class="content-text">{{ text }}</div>
-        </div>
-        {% if augmented_text %}
-        <div class="content">
-            <h3 class="content-header">
-                {% if processed_type == "Synonym" %}
-                Synonym Text:
+            <h3 class="content-header">Original</h3>
+            <div class="processing-info">
+                {% if is_image %}
+                Original uploaded image
                 {% else %}
-                Preprocessed Text:
+                Original uploaded text
                 {% endif %}
-            </h3>
+            </div>
+            {% if is_image %}
+            <div class="content-image">
+                <img src="data:image/png;base64,{{ image_data }}" alt="Original Image">
+            </div>
+            {% else %}
+            <div class="content-text">{{ text }}</div>
+            {% endif %}
+        </div>
+        {% if processed_image or augmented_text %}
+        <div class="content">
+            <h3 class="content-header">{{ processed_type }}</h3>
+            <div class="processing-info">
+                {% if is_image %}
+                    {% if processed_type == "Preprocessed" %}
+                    Applied: Denoising, Edge Enhancement, and Gaussian Blur
+                    {% else %}
+                    Applied: Color Jittering, Contrast Enhancement, and Hue Adjustment
+                    {% endif %}
+                {% else %}
+                    {% if processed_type == "Preprocessed" %}
+                    Applied: Whitespace Removal and Lowercase Conversion
+                    {% else %}
+                    Applied: Synonym Replacement (up to 3 words)
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% if is_image %}
+            <div class="content-image">
+                <img src="data:image/png;base64,{{ processed_image }}" alt="Processed Image">
+            </div>
+            {% else %}
             <div class="content-text">{{ augmented_text }}</div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
