@@ -88,3 +88,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Zip files in tmp directory
+tmp/**/*.zip
+*.zip
