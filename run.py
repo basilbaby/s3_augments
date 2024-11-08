@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 import random
@@ -13,6 +13,11 @@ import io
 import base64
 import time
 import glob
+from pydub import AudioSegment
+import librosa
+import soundfile as sf
+import tempfile
+import subprocess
 
 # Set NLTK data path to tmp directory
 NLTK_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tmp', 'nltk_data')
@@ -20,7 +25,7 @@ nltk.data.path.append(NLTK_DATA_DIR)
 
 # Define upload folder and other constants
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'txt', 'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'txt', 'png', 'jpg', 'jpeg', 'gif', 'mp3', 'wav'}
 
 # Flask app configuration
 app = Flask(__name__)
@@ -176,6 +181,166 @@ def save_temp_image(image):
     image.save(temp_filename)
     return temp_filename
 
+def is_audio_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'mp3', 'wav'}
+
+def audio_to_base64(audio_path):
+    with open(audio_path, 'rb') as audio_file:
+        return base64.b64encode(audio_file.read()).decode()
+
+def check_ffmpeg():
+    """Check if ffmpeg is installed and accessible"""
+    try:
+        # Try default path first
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        subprocess.run(['ffprobe', '-version'], capture_output=True, check=True)
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        # Try common installation paths
+        common_paths = [
+            '/usr/local/bin/ffmpeg',
+            '/usr/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg'
+        ]
+        
+        for ffmpeg_path in common_paths:
+            try:
+                if os.path.exists(ffmpeg_path):
+                    # Update pydub's path to ffmpeg
+                    from pydub import AudioSegment
+                    AudioSegment.converter = ffmpeg_path
+                    probe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe')
+                    if os.path.exists(probe_path):
+                        AudioSegment.ffprobe = probe_path
+                    return True
+            except Exception as e:
+                logger.debug(f"Failed to use ffmpeg at {ffmpeg_path}: {e}")
+                continue
+        
+        logger.error("ffmpeg/ffprobe not found in common locations")
+        return False
+
+def setup_audio_processing():
+    """Configure audio processing settings"""
+    try:
+        from pydub import AudioSegment
+        # Try to find ffmpeg in common locations
+        common_paths = [
+            '/usr/local/bin/ffmpeg',
+            '/usr/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg'
+        ]
+        
+        ffmpeg_path = None
+        for path in common_paths:
+            if os.path.exists(path):
+                ffmpeg_path = path
+                break
+        
+        if ffmpeg_path:
+            AudioSegment.converter = ffmpeg_path
+            probe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe')
+            if os.path.exists(probe_path):
+                AudioSegment.ffprobe = probe_path
+            logger.info(f"Using ffmpeg from: {ffmpeg_path}")
+            return True
+        else:
+            logger.error("Could not find ffmpeg installation")
+            return False
+    except Exception as e:
+        logger.error(f"Error setting up audio processing: {e}")
+        return False
+
+def denoise_audio(audio_path):
+    """Remove noise from audio file"""
+    try:
+        logger.debug(f"Loading audio file: {audio_path}")
+        
+        # Check ffmpeg installation
+        if not check_ffmpeg():
+            raise RuntimeError("ffmpeg is not installed. Please install ffmpeg first.")
+        
+        # Create temp directory if it doesn't exist
+        os.makedirs('tmp/audio', exist_ok=True)
+        
+        # Convert MP3 to WAV if necessary
+        temp_wav = None
+        if audio_path.lower().endswith('.mp3'):
+            temp_wav = f"tmp/audio/temp_{int(time.time())}_original.wav"
+            audio = AudioSegment.from_mp3(audio_path)
+            audio.export(temp_wav, format='wav')
+            input_path = temp_wav
+        else:
+            input_path = audio_path
+        
+        # Load the audio file
+        y, sr = librosa.load(input_path)
+        
+        # Apply noise reduction
+        y_denoised = librosa.effects.preemphasis(y)
+        
+        # Save to temporary file
+        temp_path = f"tmp/audio/temp_{int(time.time())}_denoised.wav"
+        logger.debug(f"Saving denoised audio to: {temp_path}")
+        sf.write(temp_path, y_denoised, sr)
+        
+        # Clean up temporary WAV file if created
+        if temp_wav and os.path.exists(temp_wav):
+            os.remove(temp_wav)
+        
+        return temp_path
+    except Exception as e:
+        logger.error(f"Error in audio denoising: {str(e)}", exc_info=True)
+        raise
+
+def speed_up_audio(audio_path):
+    """Increase audio speed by 20%"""
+    try:
+        logger.debug(f"Loading audio file for speed up: {audio_path}")
+        
+        # Check ffmpeg installation
+        if not check_ffmpeg():
+            raise RuntimeError("ffmpeg is not installed. Please install ffmpeg first.")
+        
+        # Create temp directory if it doesn't exist
+        os.makedirs('tmp/audio', exist_ok=True)
+        
+        # Convert MP3 to WAV if necessary
+        temp_wav = None
+        if audio_path.lower().endswith('.mp3'):
+            temp_wav = f"tmp/audio/temp_{int(time.time())}_original.wav"
+            audio = AudioSegment.from_mp3(audio_path)
+            audio.export(temp_wav, format='wav')
+            input_path = temp_wav
+        else:
+            input_path = audio_path
+        
+        # Load audio using pydub
+        audio = AudioSegment.from_file(input_path)
+        
+        # Speed up by 20%
+        faster_audio = audio.speedup(playback_speed=1.2)
+        
+        # Save to temporary file
+        temp_path = f"tmp/audio/temp_{int(time.time())}_faster.wav"
+        logger.debug(f"Saving speed-up audio to: {temp_path}")
+        faster_audio.export(temp_path, format='wav')
+        
+        # Clean up temporary WAV file if created
+        if temp_wav and os.path.exists(temp_wav):
+            os.remove(temp_wav)
+        
+        return temp_path
+    except Exception as e:
+        logger.error(f"Error in audio speed up: {str(e)}", exc_info=True)
+        raise
+
+def is_allowed_file(filename):
+    """Check if the file type is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -193,40 +358,60 @@ def index():
         logger.debug(f"Uploaded file: {filename}")
         logger.debug(f"File type: {file.content_type}")
         
-        if not (is_image_file(filename) or is_text_file(filename)):
-            return 'Unsupported file type. Please upload a .txt, .png, .jpg, .jpeg, or .gif file.', 400
-
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        if not is_allowed_file(filename):
+            return 'Unsupported file type. Please upload a .txt, .png, .jpg, .jpeg, .gif, .mp3, or .wav file.', 400
         
+        # Create file info dictionary
         file_info = {
             'name': filename,
             'type': file.content_type,
-            'size': os.path.getsize(filepath),
-            'size_formatted': format_file_size(os.path.getsize(filepath))
+            'size': 0,  # Will be updated after saving
+            'size_formatted': '0 B'
         }
         
-        if is_image_file(filename):
-            # Handle image file
-            logger.debug("Processing image file")
-            image = Image.open(filepath)
-            # Convert image to RGB if it's in RGBA mode
-            if image.mode == 'RGBA':
-                image = image.convert('RGB')
-            image_data = image_to_base64(image)
-            return render_template('display.html', 
+        # Handle different file types
+        if is_text_file(filename):
+            # Process text file
+            text = file.read().decode('utf-8')
+            file_info['size'] = len(text.encode('utf-8'))
+            file_info['size_formatted'] = format_file_size(file_info['size'])
+            return render_template('display.html',
+                                text=text,
+                                is_image=False,
+                                is_audio=False,
+                                file_info=file_info)
+        
+        elif is_image_file(filename):
+            # Process image file
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            file_info['size'] = os.path.getsize(filepath)
+            file_info['size_formatted'] = format_file_size(file_info['size'])
+            
+            with open(filepath, 'rb') as f:
+                image_bytes = f.read()
+                image_data = base64.b64encode(image_bytes).decode()
+            
+            return render_template('display.html',
                                 image_data=image_data,
-                                file_info=file_info,
-                                is_image=True)
-        elif is_text_file(filename):
-            # Handle text file
-            logger.debug("Processing text file")
-            with open(filepath, 'r') as f:
-                content = f.read()
-            return render_template('display.html', 
-                                text=content,
-                                file_info=file_info,
-                                is_image=False)
+                                is_image=True,
+                                is_audio=False,
+                                file_info=file_info)
+        
+        elif is_audio_file(filename):
+            # Process audio file
+            logger.debug("Processing audio file")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            file_info['size'] = os.path.getsize(filepath)
+            file_info['size_formatted'] = format_file_size(file_info['size'])
+            
+            audio_data = audio_to_base64(filepath)
+            return render_template('display.html',
+                                audio_data=audio_data,
+                                is_image=False,
+                                is_audio=True,
+                                file_info=file_info)
     
     return render_template('upload.html')
 
@@ -260,50 +445,80 @@ def augment():
                                 text=text,
                                 augmented_text=augmented_text,
                                 is_image=False,
+                                is_audio=False,
                                 processed_type="Augmented",
                                 file_info=file_info)
         
-        # Handle image augmentation
+        # Get filename from form
         filename = request.form.get('filename')
         if not filename:
-            return 'No image provided', 400
+            return 'No file provided', 400
         
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         if not os.path.exists(filepath):
-            return 'Image not found', 404
+            return 'File not found', 404
         
         # Create file_info dictionary
         file_info = {
             'name': filename,
-            'type': 'image/png',  # or get actual mime type
+            'type': 'image/png' if is_image_file(filename) else 'audio/wav',
             'size': os.path.getsize(filepath),
             'size_formatted': format_file_size(os.path.getsize(filepath))
         }
         
-        # Open and process the image
-        image = Image.open(filepath)
-        if image.mode == 'RGBA':
-            image = image.convert('RGB')
+        # Handle audio files
+        if is_audio_file(filename):
+            logger.debug("Augmenting audio file")
+            try:
+                # Process audio
+                augmented_path = speed_up_audio(filepath)
+                
+                return render_template('display.html',
+                                    audio_data=audio_to_base64(filepath),
+                                    processed_audio=audio_to_base64(augmented_path),
+                                    is_image=False,
+                                    is_audio=True,
+                                    processed_type="Augmented",
+                                    file_info=file_info)
+            except Exception as e:
+                logger.error(f"Error in audio augmentation: {str(e)}", exc_info=True)
+                return f"Error in audio augmentation: {str(e)}", 500
         
-        augmented_image = color_jitter(image)
-        augmented_filename = save_temp_image(augmented_image)
+        # Handle image files
+        elif is_image_file(filename):
+            logger.debug("Augmenting image file")
+            try:
+                # Open and process the image
+                image = Image.open(filepath)
+                if image.mode == 'RGBA':
+                    image = image.convert('RGB')
+                
+                augmented_image = color_jitter(image)
+                augmented_filename = save_temp_image(augmented_image)
+                
+                with open(filepath, 'rb') as f:
+                    original_image_data = base64.b64encode(f.read()).decode()
+                
+                with open(augmented_filename, 'rb') as f:
+                    augmented_image_data = base64.b64encode(f.read()).decode()
+                
+                return render_template('display.html',
+                                    image_data=original_image_data,
+                                    processed_image=augmented_image_data,
+                                    is_image=True,
+                                    is_audio=False,
+                                    processed_type="Augmented",
+                                    file_info=file_info)
+            except Exception as e:
+                logger.error(f"Error in image augmentation: {str(e)}", exc_info=True)
+                return f"Error in image augmentation: {str(e)}", 500
         
-        with open(filepath, 'rb') as f:
-            original_image_data = base64.b64encode(f.read()).decode()
-        
-        with open(augmented_filename, 'rb') as f:
-            augmented_image_data = base64.b64encode(f.read()).decode()
-        
-        return render_template('display.html',
-                            image_data=original_image_data,
-                            processed_image=augmented_image_data,
-                            is_image=True,
-                            processed_type="Augmented",
-                            filename=filename,
-                            file_info=file_info)
+        else:
+            return 'Unsupported file type', 400
+            
     except Exception as e:
-        logger.error(f"Error in image augmentation: {str(e)}", exc_info=True)
-        return f"Error in image augmentation: {str(e)}", 500
+        logger.error(f"Error in augmentation: {str(e)}", exc_info=True)
+        return f"Error in augmentation: {str(e)}", 500
 
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
@@ -328,63 +543,110 @@ def preprocess():
                                 text=text,
                                 augmented_text=preprocessed_text,
                                 is_image=False,
+                                is_audio=False,
                                 processed_type="Preprocessed",
                                 file_info=file_info)
         
-        # Handle image preprocessing
+        # Get filename from form
         filename = request.form.get('filename')
         if not filename:
-            return 'No image provided', 400
+            return 'No file provided', 400
         
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         if not os.path.exists(filepath):
-            return 'Image not found', 404
+            return 'File not found', 404
         
         # Create file_info dictionary
         file_info = {
             'name': filename,
-            'type': 'image/png',  # or get actual mime type
+            'type': 'image/png' if is_image_file(filename) else 'audio/wav',
             'size': os.path.getsize(filepath),
             'size_formatted': format_file_size(os.path.getsize(filepath))
         }
         
-        # Open and process the image
-        image = Image.open(filepath)
-        if image.mode == 'RGBA':
-            image = image.convert('RGB')
+        # Handle audio files
+        if is_audio_file(filename):
+            logger.debug("Preprocessing audio file")
+            try:
+                # Process audio
+                processed_path = denoise_audio(filepath)
+                
+                return render_template('display.html',
+                                    audio_data=audio_to_base64(filepath),
+                                    processed_audio=audio_to_base64(processed_path),
+                                    is_image=False,
+                                    is_audio=True,
+                                    processed_type="Preprocessed",
+                                    file_info=file_info)
+            except Exception as e:
+                logger.error(f"Error in audio preprocessing: {str(e)}", exc_info=True)
+                return f"Error in audio preprocessing: {str(e)}", 500
         
-        processed_image = denoise_image(image)
-        processed_filename = save_temp_image(processed_image)
+        # Handle image files
+        elif is_image_file(filename):
+            logger.debug("Preprocessing image file")
+            try:
+                # Open and process the image
+                image = Image.open(filepath)
+                if image.mode == 'RGBA':
+                    image = image.convert('RGB')
+                
+                processed_image = denoise_image(image)
+                processed_filename = save_temp_image(processed_image)
+                
+                with open(filepath, 'rb') as f:
+                    original_image_data = base64.b64encode(f.read()).decode()
+                
+                with open(processed_filename, 'rb') as f:
+                    processed_image_data = base64.b64encode(f.read()).decode()
+                
+                return render_template('display.html',
+                                    image_data=original_image_data,
+                                    processed_image=processed_image_data,
+                                    is_image=True,
+                                    is_audio=False,
+                                    processed_type="Preprocessed",
+                                    file_info=file_info)
+            except Exception as e:
+                logger.error(f"Error in image preprocessing: {str(e)}", exc_info=True)
+                return f"Error in image preprocessing: {str(e)}", 500
         
-        with open(filepath, 'rb') as f:
-            original_image_data = base64.b64encode(f.read()).decode()
-        
-        with open(processed_filename, 'rb') as f:
-            processed_image_data = base64.b64encode(f.read()).decode()
-        
-        return render_template('display.html',
-                            image_data=original_image_data,
-                            processed_image=processed_image_data,
-                            is_image=True,
-                            processed_type="Preprocessed",
-                            filename=filename,
-                            file_info=file_info)
+        else:
+            return 'Unsupported file type', 400
+            
     except Exception as e:
-        logger.error(f"Error in image preprocessing: {str(e)}", exc_info=True)
-        return f"Error in image preprocessing: {str(e)}", 500
+        logger.error(f"Error in preprocessing: {str(e)}", exc_info=True)
+        return f"Error in preprocessing: {str(e)}", 500
 
 def cleanup_temp_files():
-    """Clean up temporary image files older than 1 hour"""
+    """Clean up temporary files older than 1 hour"""
     current_time = time.time()
-    temp_files = glob.glob('tmp/images/temp_*.png')
     
-    for temp_file in temp_files:
+    # Clean up image files
+    temp_images = glob.glob('tmp/images/temp_*.png')
+    for temp_file in temp_images:
         try:
             file_time = float(temp_file.split('_')[1].split('.')[0])
             if current_time - file_time > 3600:  # 1 hour
                 os.remove(temp_file)
         except (ValueError, OSError) as e:
-            logger.error(f"Error cleaning up {temp_file}: {e}")
+            logger.error(f"Error cleaning up image {temp_file}: {e}")
+    
+    # Clean up audio files
+    temp_audio = glob.glob('tmp/audio/temp_*.wav')
+    for temp_file in temp_audio:
+        try:
+            file_time = float(temp_file.split('_')[1].split('.')[0])
+            if current_time - file_time > 3600:  # 1 hour
+                os.remove(temp_file)
+        except (ValueError, OSError) as e:
+            logger.error(f"Error cleaning up audio {temp_file}: {e}")
+
+# Add this route for favicon
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 if __name__ == '__main__':
     # Parse command line arguments
@@ -395,6 +657,16 @@ if __name__ == '__main__':
     # Configure logging based on debug flag
     configure_logging(args.debug)
     
+    # Check ffmpeg installation
+    if not check_ffmpeg():
+        logger.error("ffmpeg is not installed. Please install ffmpeg to process audio files.")
+        print("Error: ffmpeg is not installed. Please install ffmpeg to process audio files.")
+        print("Installation instructions:")
+        print("  macOS: brew install ffmpeg")
+        print("  Ubuntu/Debian: sudo apt-get install ffmpeg")
+        print("  Windows: Download from https://www.gyan.dev/ffmpeg/builds/")
+        exit(1)
+    
     # Setup NLTK data
     logger.info("Setting up NLTK data...")
     if setup_nltk():
@@ -403,12 +675,10 @@ if __name__ == '__main__':
         logger.error("Failed to download NLTK data")
         exit(1)
 
-    # Create uploads folder if it doesn't exist
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
     # Create necessary directories
     os.makedirs('uploads', exist_ok=True)
     os.makedirs('tmp/images', exist_ok=True)
+    os.makedirs('tmp/audio', exist_ok=True)
     
     # Clean up old temporary files
     cleanup_temp_files()

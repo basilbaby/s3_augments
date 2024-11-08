@@ -1,11 +1,8 @@
-# Virtual Environment
-venv/
-env/
-ENV/
-.env
-.venv
-env.bak/
-venv.bak/
+# Temporary directories
+tmp/
+tmp/images/
+tmp/audio/
+uploads/
 
 # Python
 __pycache__/
@@ -29,66 +26,19 @@ wheels/
 .installed.cfg
 *.egg
 
-# IDEs and Editors
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
+
+# IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
 .DS_Store
-.env
-.project
-.pydevproject
-.settings/
-*.sublime-workspace
-*.sublime-project
 
-# Logs and databases
+# Logs
 *.log
-*.sqlite
-*.db
-*.sql
-
-# Project specific
-uploads/
-instance/
-.webassets-cache/
-
-# Testing
-.coverage
-htmlcov/
-.tox/
-.nox/
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Documentation
-docs/_build/
-site/
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Zip files in tmp directory
-tmp/**/*.zip
-*.zip
+logs/
