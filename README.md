@@ -88,7 +88,7 @@ A Flask-based web application that provides preprocessing and augmentation capab
 
 ## Directory Structure
 
-.
+```
 ├── run.py              # Main application file
 ├── requirements.txt    # Python dependencies
 ├── templates/          # HTML templates
@@ -97,6 +97,7 @@ A Flask-based web application that provides preprocessing and augmentation capab
 ├── uploads/           # Uploaded files directory
 └── tmp/              # Temporary files directory
     └── images/       # Processed images storage
+```
 
 ## Dependencies
 
