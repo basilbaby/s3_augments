@@ -4,20 +4,19 @@ import os
 
 app = Flask(__name__)
 
-# Configuration
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+# Basic configuration
+app.config['SECRET_KEY'] = 'dev'
+UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Ensure upload folder exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Create uploads folder if it doesn't exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-# Remove any default route that might be showing "Hello, Flask!"
 @app.route('/', methods=['GET', 'POST'])
-def upload_file():
-    print("Route accessed!")  # Debug print
+def index():
     if request.method == 'POST':
-        print("POST request received")  # Debug print
+        print("Upload route accessed")  # Debug print
         if 'file' not in request.files:
             return 'No file uploaded', 400
         
@@ -25,19 +24,16 @@ def upload_file():
         if file.filename == '':
             return 'No file selected', 400
 
-        if file:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            
-            # Read the file content
-            with open(filepath, 'r') as f:
-                content = f.read()
-            return render_template('display.html', text=content)
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+        with open(os.path.join(app.config['UPLOAD_FOLDER'], filename), 'r') as f:
+            content = f.read()
+        return render_template('display.html', text=content)
     
-    print("Rendering upload template")  # Debug print
+    print("Index route accessed")  # Debug print
     return render_template('upload.html')
 
 if __name__ == '__main__':
     print("Starting Flask server...")
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=8080, debug=True, threaded=True)
