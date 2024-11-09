@@ -3,31 +3,14 @@ Flask==3.0.0
 Werkzeug==3.0.1
 
 # Image Processing
-Pillow==10.2.0
-opencv-python==4.9.0.80
-numpy==1.26.3
+Pillow==10.0.0
 
-# Audio Processing
-librosa==0.10.1
-soundfile==0.12.1
-pydub==0.25.1
-
-# Text Processing
-nltk==3.8.1
-
-# File Handling
-python-magic==0.4.27
+# 3D Processing
+torch==2.1.0
 
 # Development & Debugging
 pytest==7.4.4
 python-dotenv==1.0.0
-
-# System Dependencies
-# Note: These might need to be installed via system package manager (apt, brew, etc.)
-# For audio processing:
-# - ffmpeg
-# - portaudio
-# - libsndfile
 
 # Optional but recommended for better performance
 numba==0.58.1
@@ -37,4 +20,7 @@ llvmlite==0.41.1
 torch==2.1.0
 trimesh==4.0.5
 pyrender==0.1.45
-numpy==1.26.3 
+numpy==1.24.3
+
+# 3D Plotting
+matplotlib==3.7.1

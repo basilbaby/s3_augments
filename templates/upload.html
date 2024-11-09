@@ -1,57 +1,138 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>File Upload</title>
+    <title>3D Model Viewer and Processor</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
             margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        .banner {
+            background-color: #4285f4;
+            color: white;
             padding: 20px;
-            background-color: #f5f5f5;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .banner h1 {
+            margin: 0;
+            font-size: 24px;
         }
         .container {
             max-width: 800px;
             margin: 0 auto;
-            background-color: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 20px;
         }
         .upload-form {
-            text-align: center;
-            margin: 20px 0;
+            flex: 1;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            min-width: 300px;
         }
-        .file-input {
-            margin: 20px 0;
+        .format-info {
+            flex: 1;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            font-size: 12px;
         }
-        .submit-button {
+        .format-info h2 {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        .format-info h2:first-child {
+            margin-top: 0;
+        }
+        .upload-button {
             background-color: #4285f4;
             color: white;
             padding: 10px 20px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            margin-top: 10px;
         }
-        .submit-button:hover {
-            background-color: #3367d6;
+        ul {
+            padding-left: 20px;
+            margin: 10px 0;
         }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
+        li {
+            margin: 5px 0;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre;
+            margin: 10px 0;
+        }
+        .format-info ul {
+            padding-left: 15px;
+            margin: 5px 0;
+        }
+        .format-info li {
+            margin: 3px 0;
+        }
+        .format-info pre {
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre;
+            margin: 5px 0;
+            font-size: 11px;
+            border: 1px solid #eee;
         }
     </style>
 </head>
 <body>
+    <div class="banner">
+        <h1>3D Model Viewer and Processor</h1>
+    </div>
+
     <div class="container">
-        <h1>File Upload</h1>
-        <form class="upload-form" action="/" method="post" enctype="multipart/form-data">
-            <div class="file-input">
-                <input type="file" name="file" accept=".off,.txt,.jpg,.jpeg,.png,.gif,.mp3,.wav">
-            </div>
-            <input type="submit" value="Upload" class="submit-button">
-        </form>
+        <div class="upload-form">
+            <h2>Upload Model</h2>
+            <form method="post" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".off">
+                <input type="submit" value="Upload" class="upload-button">
+            </form>
+        </div>
+
+        <div class="format-info">
+            <h2>Supported Format</h2>
+            <ul>
+                <li><strong>File Format:</strong> OFF (Object File Format)</li>
+                <li><strong>Max File Size:</strong> 16MB</li>
+            </ul>
+
+            <h2>Format Specifications</h2>
+            <ul>
+                <li>First line must contain "OFF"</li>
+                <li>Second line contains three integers: number of vertices, faces, and edges</li>
+                <li>Following lines list the vertex coordinates (x y z)</li>
+                <li>Final lines list the faces (number_of_vertices v1 v2 v3...)</li>
+            </ul>
+
+            <h2>Example</h2>
+            <pre>OFF
+8 12 0
+1.0 1.0 1.0
+-1.0 1.0 1.0
+...
+3 0 1 2
+3 0 2 3
+...</pre>
+        </div>
     </div>
 </body>
 </html> 
