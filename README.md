@@ -1,4 +1,4 @@
-# Augmenter
+# DataForge
 
 A Flask-based web application that provides preprocessing and augmentation capabilities for text, image, and audio files.
 

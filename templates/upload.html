@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Augmenter</title>
+    <title>DataForge</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
         body {
@@ -9,17 +9,41 @@
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .banner {
+            background-color: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .footer {
+            background-color: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+            margin-top: auto;
+            border-radius: 8px;
         }
         .upload-container {
-            background-color: #f5f5f7;
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to bottom right, #f5f5f5, #e0e0e0);
+            border: 2px solid #2c3e50;
             border-radius: 10px;
             padding: 20px;
-            margin-top: 20px;
+            margin: 20px 0;
+            gap: 20px;
         }
         .upload-form {
             display: flex;
             flex-direction: column;
             gap: 15px;
+            flex: 1;
         }
         .button {
             background-color: #0071e3;
@@ -32,27 +56,41 @@
         }
         .button:hover {
             background-color: #0077ed;
+            box-shadow: 0 0 5px #0077ed;
+            transition: all 0.3s ease;
         }
         .file-types {
             color: #666;
             font-size: 0.9em;
-            margin-top: 5px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 200px;
+            border: 1px solid #ddd;
+        }
+        .upload-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-start;
         }
     </style>
 </head>
 <body>
-    <h1>Augmenter</h1>
+    <h1>DataForge</h1>
     <div class="upload-container">
         <form class="upload-form" action="/" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept=".txt,.png,.jpg,.jpeg,.gif,.mp3,.wav">
-            <div class="file-types">
-                Supported files: 
-                <br>- Text (.txt)
-                <br>- Images (.png, .jpg, .jpeg, .gif)
-                <br>- Audio (.mp3, .wav)
+            <div class="upload-controls">
+                <input type="file" name="file" accept=".txt,.png,.jpg,.jpeg,.gif,.mp3,.wav">
+                <button type="submit" class="button">Upload and Process</button>
             </div>
-            <button type="submit" class="button">Upload and Process</button>
         </form>
+        <div class="file-types">
+            <strong>Supported files:</strong>
+            <br>- Text (.txt)
+            <br>- Images (.png, .jpg, .jpeg, .gif)
+            <br>- Audio (.mp3, .wav)
+        </div>
     </div>
 </body>
 </html> 
