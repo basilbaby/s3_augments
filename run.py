@@ -9,6 +9,8 @@ from PIL import Image, ImageDraw
 from flask import Flask, request, render_template, jsonify, send_file
 from werkzeug.utils import secure_filename
 from nltk.corpus import wordnet
+import matplotlib.pyplot as plt
+import io
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,
@@ -34,6 +36,14 @@ app.config.update(
     TEMP_FOLDER=str(TEMP_DIR),
     DEBUG=True
 )
+
+def format_file_size(size_in_bytes):
+    """Format file size in bytes to human readable format"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_in_bytes < 1024:
+            return f"{size_in_bytes:.1f} {unit}"
+        size_in_bytes /= 1024
+    return f"{size_in_bytes:.1f} TB"
 
 def load_off_file(filepath):
     """Load OFF file and return vertices and faces"""
@@ -215,27 +225,28 @@ def upload_file():
             file_extension = os.path.splitext(filename)[1].lower()
             
             if file_extension == '.off':
-                # 3D Model handling (existing code)
+                # 3D Model handling
                 vertices, faces = load_off_file(filepath)
                 preview_img = create_model_preview(vertices, faces)
                 
                 # Save preview
-                preview_path = os.path.join(app.config['TEMP_FOLDER'], f'preview_{filename}.png')
+                preview_path = os.path.join('tmp', 'images', f'preview_{filename}.png')
                 preview_img.save(preview_path)
                 
                 with open(preview_path, 'rb') as f:
-                    preview_data = base64.b64encode(f.read()).decode()
+                    model_data = base64.b64encode(f.read()).decode()
                 
                 file_info = {
                     'name': filename,
                     'type': '3D Model (OFF)',
-                    'size': f'{os.path.getsize(filepath)} B',
+                    'size': format_file_size(os.path.getsize(filepath)),
                     'vertices': vertices.shape[0],
                     'faces': faces.shape[0]
                 }
                 
-                model_info = {'preview': preview_data}
-                return render_template('model_view.html', file_info=file_info, model_info=model_info)
+                return render_template('model_view.html',
+                                     file_info=file_info,
+                                     model_data=model_data)
             
             elif file_extension in ['.txt']:
                 # Text file handling
@@ -321,127 +332,154 @@ def preprocess_model(vertices, faces):
     return torch.tensor(vertices_final, dtype=torch.float32), torch.tensor(faces_np, dtype=torch.long)
 
 def augment_model(vertices, faces):
-    """Augment the 3D model with multiple transformations"""
-    # Convert to numpy arrays
-    vertices_np = vertices.numpy() if torch.is_tensor(vertices) else np.array(vertices)
-    faces_np = faces.numpy() if torch.is_tensor(faces) else np.array(faces)
+    """Apply random augmentations to the 3D model"""
+    # Convert to numpy if needed
+    vertices_np = vertices.numpy() if torch.is_tensor(vertices) else vertices
+    faces_np = faces.numpy() if torch.is_tensor(faces) else faces
     
-    # Step 1: Center the model first
-    center = np.mean(vertices_np, axis=0)
-    vertices_centered = vertices_np - center
+    # Random rotation angle (in radians)
+    angle = np.random.uniform(0, 2 * np.pi)
     
-    # Step 2: Apply random rotations on multiple axes
-    # Random angles between -45 and 45 degrees
-    theta_x = np.random.uniform(-np.pi/4, np.pi/4)
-    theta_y = np.random.uniform(-np.pi/4, np.pi/4)
-    theta_z = np.random.uniform(-np.pi/4, np.pi/4)
-    
-    # Rotation matrices
-    rot_x = np.array([
-        [1, 0, 0],
-        [0, np.cos(theta_x), -np.sin(theta_x)],
-        [0, np.sin(theta_x), np.cos(theta_x)]
-    ])
-    
-    rot_y = np.array([
-        [np.cos(theta_y), 0, np.sin(theta_y)],
-        [0, 1, 0],
-        [-np.sin(theta_y), 0, np.cos(theta_y)]
-    ])
-    
-    rot_z = np.array([
-        [np.cos(theta_z), -np.sin(theta_z), 0],
-        [np.sin(theta_z), np.cos(theta_z), 0],
-        [0, 0, 1]
-    ])
-    
-    # Apply all rotations
-    vertices_rotated = vertices_centered @ rot_x @ rot_y @ rot_z
-    
-    # Step 3: Add random scaling (between 0.8 and 1.2)
+    # Random scaling factor
     scale = np.random.uniform(0.8, 1.2)
+    
+    # Create rotation matrix around Y-axis
+    rotation_matrix = np.array([
+        [np.cos(angle), 0, np.sin(angle)],
+        [0, 1, 0],
+        [-np.sin(angle), 0, np.cos(angle)]
+    ])
+    
+    # Apply rotation
+    vertices_rotated = np.dot(vertices_np, rotation_matrix)
+    
+    # Apply scaling
     vertices_scaled = vertices_rotated * scale
     
-    # Step 4: Add small random translation
-    translation = np.random.uniform(-0.2, 0.2, size=3)
-    vertices_final = vertices_scaled + translation
-    
-    logger.debug(f"Augmentation applied: scale={scale:.2f}, " +
-                f"rotations(deg)=({np.degrees(theta_x):.1f}, {np.degrees(theta_y):.1f}, {np.degrees(theta_z):.1f})")
-    
-    return torch.tensor(vertices_final, dtype=torch.float32), torch.tensor(faces_np, dtype=torch.long)
+    # Return transformed vertices, faces, and transformation parameters
+    return (torch.tensor(vertices_scaled), 
+            torch.tensor(faces_np),
+            {'angle': angle, 'scale': scale})
 
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
+    logger.info("Preprocessing route called")
     try:
         filename = request.form.get('filename')
         if not filename:
-            return jsonify({'error': 'No filename provided'}), 400
+            return jsonify({'error': 'No file provided'}), 400
             
-        filepath = UPLOAD_DIR / secure_filename(filename)
-        if not filepath.exists():
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(filepath):
             return jsonify({'error': 'File not found'}), 404
-        
+            
         # Load the model
         vertices, faces = load_off_file(filepath)
         
-        # Preprocess the model
-        vertices_processed, faces_processed = preprocess_model(vertices, faces)
+        # Apply preprocessing
+        processed_vertices, processed_faces = preprocess_model(vertices, faces)
         
-        # Create preview
-        img = create_model_preview(vertices_processed, faces_processed)
-        thumb_path = TEMP_DIR / f'preview_processed_{int(time.time())}.png'
-        img.save(thumb_path)
+        # Create preview images
+        preview_img = create_model_preview(processed_vertices, processed_faces)
+        preview_path = os.path.join('tmp', 'images', f'preview_processed_{filename}.png')
+        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+        preview_img.save(preview_path)
         
-        with open(thumb_path, 'rb') as f:
-            thumbnail_data = base64.b64encode(f.read()).decode()
+        # Create original preview for comparison
+        original_preview = create_model_preview(vertices, faces)
+        original_path = os.path.join('tmp', 'images', f'preview_original_{filename}.png')
+        original_preview.save(original_path)
         
-        return jsonify({
-            'success': True,
-            'preview': thumbnail_data,
-            'vertices': vertices_processed.shape[0],
-            'faces': faces_processed.shape[0]
-        })
+        with open(preview_path, 'rb') as f:
+            processed_data = base64.b64encode(f.read()).decode()
+            
+        with open(original_path, 'rb') as f:
+            original_data = base64.b64encode(f.read()).decode()
         
+        preprocessing_info = {
+            'operations': [
+                'Centered model to origin',
+                'Normalized scale to [-1, 1]',
+                'Rotated 45° around Y-axis'
+            ]
+        }
+        
+        return render_template('model_view.html',
+                            file_info={
+                                'name': filename,
+                                'type': '3D Model (OFF)',
+                                'size': format_file_size(os.path.getsize(filepath)),
+                                'vertices': vertices.shape[0],
+                                'faces': faces.shape[0]
+                            },
+                            model_data=original_data,
+                            processed_model=processed_data,
+                            preprocessing_info=preprocessing_info,
+                            processed_type="Preprocessed Model")
+                            
     except Exception as e:
-        logger.error(f"Error in preprocessing: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in preprocessing: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Error during preprocessing: {str(e)}'}), 500
 
 @app.route('/augment', methods=['POST'])
 def augment():
+    logger.info("Augmentation route called")
     try:
         filename = request.form.get('filename')
         if not filename:
-            return jsonify({'error': 'No filename provided'}), 400
+            return jsonify({'error': 'No file provided'}), 400
             
-        filepath = UPLOAD_DIR / secure_filename(filename)
-        if not filepath.exists():
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(filepath):
             return jsonify({'error': 'File not found'}), 404
-        
+            
         # Load the model
         vertices, faces = load_off_file(filepath)
         
-        # Augment the model
-        vertices_augmented, faces_augmented = augment_model(vertices, faces)
+        # Apply augmentation
+        augmented_vertices, augmented_faces, aug_params = augment_model(vertices, faces)
         
-        # Create preview
-        img = create_model_preview(vertices_augmented, faces_augmented)
-        thumb_path = TEMP_DIR / f'preview_augmented_{int(time.time())}.png'
-        img.save(thumb_path)
+        # Create preview images
+        preview_img = create_model_preview(augmented_vertices, augmented_faces)
+        preview_path = os.path.join('tmp', 'images', f'preview_augmented_{filename}.png')
+        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+        preview_img.save(preview_path)
         
-        with open(thumb_path, 'rb') as f:
-            thumbnail_data = base64.b64encode(f.read()).decode()
+        # Create original preview for comparison
+        original_preview = create_model_preview(vertices, faces)
+        original_path = os.path.join('tmp', 'images', f'preview_original_{filename}.png')
+        original_preview.save(original_path)
         
-        return jsonify({
-            'success': True,
-            'preview': thumbnail_data,
-            'vertices': vertices_augmented.shape[0],
-            'faces': faces_augmented.shape[0]
-        })
+        with open(preview_path, 'rb') as f:
+            augmented_data = base64.b64encode(f.read()).decode()
+            
+        with open(original_path, 'rb') as f:
+            original_data = base64.b64encode(f.read()).decode()
         
+        augmentation_info = {
+            'operations': [
+                f'Random rotation: {np.round(np.degrees(aug_params["angle"]), 2)}°',
+                f'Random scaling: {np.round(aug_params["scale"], 2)}x',
+                'Position preserved'
+            ]
+        }
+        
+        return render_template('model_view.html',
+                            file_info={
+                                'name': filename,
+                                'type': '3D Model (OFF)',
+                                'size': format_file_size(os.path.getsize(filepath)),
+                                'vertices': vertices.shape[0],
+                                'faces': faces.shape[0]
+                            },
+                            model_data=original_data,
+                            processed_model=augmented_data,
+                            preprocessing_info=augmentation_info,
+                            processed_type="Augmented Model")
+                            
     except Exception as e:
-        logger.error(f"Error in augmentation: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in augmentation: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Error during augmentation'}), 500
 
 @app.route('/preprocess_text', methods=['POST'])
 def preprocess_text():
