@@ -75,45 +75,38 @@ def load_off_file(filepath):
     
     return torch.tensor(vertices), torch.tensor(faces)
 
-def create_model_preview(vertices, faces, size=(400, 400)):
-    """Create a 2D preview with enhanced visualization"""
-    img = Image.new('RGB', size, 'white')
-    draw = ImageDraw.Draw(img)
+def create_model_preview(vertices, faces):
+    """Create a preview image of the 3D model"""
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, projection='3d')
     
-    # Convert to numpy if needed
-    verts = vertices.numpy() if torch.is_tensor(vertices) else vertices
-    faces_np = faces.numpy() if torch.is_tensor(faces) else faces
+    # Plot the model
+    ax.plot_trisurf(vertices[:, 0], vertices[:, 1], vertices[:, 2], 
+                    triangles=faces, color='lightgray', edgecolor='black')
     
-    # Calculate bounds with padding
-    min_coords = verts.min(axis=0)
-    max_coords = verts.max(axis=0)
-    center = (min_coords + max_coords) / 2
+    # Add coordinate axes
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
     
-    # Add more padding for better visibility
-    scale = min(size) * 0.7 / max(max_coords - min_coords)
+    # Add grid
+    ax.grid(True)
     
-    # Project vertices with enhanced visibility
-    points_2d = []
-    for v in verts:
-        x = (v[0] - center[0]) * scale + size[0] / 2
-        y = (v[1] - center[1]) * scale + size[1] / 2
-        points_2d.append((x, y))
+    # Set equal aspect ratio
+    ax.set_box_aspect([1,1,1])
     
-    # Draw faces with enhanced styling
-    for face in faces_np:
-        # Draw filled face
-        draw.polygon([points_2d[i] for i in face], 
-                    fill='#e0e0e0',
-                    outline='black')
-        
-        # Draw edges with thicker lines
-        for i in range(3):
-            v1, v2 = face[i], face[(i + 1) % 3]
-            draw.line([points_2d[v1], points_2d[v2]], 
-                     fill='black', 
-                     width=2)
+    # Set view angle
+    ax.view_init(elev=20, azim=45)
     
-    return img
+    # Save to buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    # Convert buffer to PIL Image
+    img = Image.open(buf)
+    return img.convert('RGB')
 
 def process_3d_file(filepath, filename):
     """Process a 3D file and create visualization"""
